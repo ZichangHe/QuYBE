@@ -25,7 +25,6 @@ class block:
             temp2 = np.kron(I,temp2)
         self.m = np.kron(np.kron(temp1,G(self.theta[0],self.theta[1],opt)),temp2)
         
- 
     def merge(self, block2):
         assert self.row == block2.row
         self.theta += block2.theta
@@ -54,11 +53,15 @@ else:
     sys.exit(1)
     
 ### Generate original chain
-N = 10 #current N is even
-p = N//2+3 # p==N//2: no need to merge
+N = 9 #N can be both even and odd
+p = N # p>=N, p=N no merge
+if p == N:
+    verbose = True
+else:
+    verbose = False
 YBE_count = 0
 rows = [[] for _ in range(N-1)] #[[]] * N is wrong
-for j in range(2*p):
+for j in range(p):
     for i in range(N-1):
         if j % 2 == 0:
             if i % 2 ==0:
@@ -70,33 +73,29 @@ for j in range(2*p):
                 rows[i].append([])
             else:
                 rows[i].append(block(row=i,col=j,N=N))
-print(f'Generate N={N}, depth={p} XY circuits')
+print(f'Generate N={N}, depth={p}, {Hmodel} circuits')
+### Ground truth simulation result
 ori = 1
-ori2 = 1
 for _ in range(N):
     ori=np.kron(ori,I)
-    ori2=np.kron(ori2,I)
-for j in range(2*p):
+for j in range(p):
     for i in range(N-1):
+    # for i in [0,4,2,1,3]: #some permutation is allowed
         if rows[i][j] != []:
             ori=ori@rows[i][j].m 
-### Test other origins         
-# for j in range(2*p):        
-#     for i in [0,2,4,1,3]: #permutation is allowed
-#         if rows[i][j] != []:
-#             ori2=ori2@rows[i][j].m 
-# print(f'Ori == Ori2: {np.allclose(ori,ori2)}')      
 
-#### Step 1
-def move_first_row(new_rows,k=0,mode='12',verbose=False): 
+def move_first_row(new_rows,k=0,mode='12',verbose=verbose): 
     global YBE_count
-    if mode == '12':
-        if (N-k)//2>1:
+    if mode == '12': #when it is used in transform12
+        if N % 2 == 0:
             s_size = (N-k)//2-1
         else:
-            s_size = (N-k+1)//2-1
-    else: #'23'
-        s_size = (N-1-k)//2 
+            s_size = (N-k-1)//2
+    else: #mode == '23', #when it is used in transform23
+        if N % 2 == 0:    
+            s_size = (N-1-k)//2 
+        else:
+            s_size = (N-k)//2-1
     for s in range(s_size): #(N-k)//2-1
         ind_ini = 2*s+2 
         ind = ind_ini #rightmost ind in V shape
@@ -111,13 +110,7 @@ def move_first_row(new_rows,k=0,mode='12',verbose=False):
         p_temp = max(len(x) for x in new_rows)
         print(f'#{k+1} row: Start moving the #{s+1} block with {p_temp} layers') 
         ####
-        if N % 2 == 0:
-            end_layer = N-ind
-        else:
-            # if (N-k)//2>1:
-            end_layer = N-1-ind
-                
-        for i in range(k,end_layer): 
+        for i in range(k,N-ind): 
             theta_init=np.concatenate((np.concatenate((new_rows[i][ind-2].theta,new_rows[i+1][ind-1].theta),axis=None), \
                                                   new_rows[i][ind].theta), axis=None)
             theta_trans = YBE_V2A(theta_init)
@@ -148,8 +141,6 @@ def move_first_row(new_rows,k=0,mode='12',verbose=False):
                         if new_rows[row][col] != []:
                             new=new@new_rows[row][col].m 
                 print(f'#{i-k+1} YBE, Ori == New: {np.allclose(ori,new)}') 
-            # if new_rows[i+1+1][ind+1] != []:
-            #     break
         print(f'#{k+1} row: Finish moving the #{s+1} blocK')
         
         # move back some blocks
@@ -175,12 +166,18 @@ def move_first_row(new_rows,k=0,mode='12',verbose=False):
         
     return new_rows
 
-def move_second_row(new_rows,k=1,verbose=False): 
+def move_second_row(new_rows,k=1,mode='12',verbose=verbose): 
     global YBE_count
-    if N % 2 == 0:
-        s_size = (N-k)//2-1
+    if mode=='12':
+        if N % 2 == 0:
+            s_size = (N-k)//2-1
+        else:
+            s_size = (N-1-k)//2
     else:
-        s_size = (N-1-k)//2-1
+        if N % 2==0:
+            s_size = (N-1-k)//2
+        else:
+            s_size = (N-k)//2-1 
     for s in range(s_size): #(N-k)//2-1
         ind_ini = 2*s+3
         ind = ind_ini #rightmost ind in V shape
@@ -188,17 +185,14 @@ def move_second_row(new_rows,k=1,verbose=False):
             new_rows[row][ind:ind] = [[],[]] 
         new_rows[k][ind+1:ind+1] = [[],[]] 
         new_rows[k+1][ind:ind] = [[],[]] 
-        new_rows[k+2][ind-1:ind-1] = [[],[]] 
-        for row in range(1,N-1-2-k): 
-            new_rows[k+2+row][ind-1+row:ind-1+row] = [[],[]]
+        if k+2 <= N-2:
+            new_rows[k+2][ind-1:ind-1] = [[],[]] 
+            for row in range(1,N-1-2-k): 
+                new_rows[k+2+row][ind-1+row:ind-1+row] = [[],[]]
         p_temp = max(len(x) for x in new_rows)
         print(f'#{k+1} row: Start moving the #{s+1} block with {p_temp} layers') 
         ####
-        if N % 2 == 0:
-            end_layer = N-ind
-        else:
-            end_layer = N-1-ind
-        for i in range(k,end_layer): 
+        for i in range(k,N-ind): 
             theta_init=np.concatenate((np.concatenate((new_rows[i][ind-2].theta,new_rows[i+1][ind-1].theta),axis=None), \
                                                   new_rows[i][ind].theta), axis=None)
             theta_trans = YBE_V2A(theta_init)
@@ -254,7 +248,7 @@ def move_second_row(new_rows,k=1,verbose=False):
         
     return new_rows
 
-def move_last_diag(new_rows,k=1,verbose=False): #fill N-1-k row
+def move_diag_to23(new_rows,k=1,verbose=verbose): #fill N-1-k row
     global YBE_count
     for s in range(ceil(k/2)):
         ind_ini_row = N-2-k+2*s 
@@ -285,7 +279,6 @@ def move_last_diag(new_rows,k=1,verbose=False): #fill N-1-k row
                 for row in range(ind_row+1,N-1): 
                     new_rows[row][ind_col-1:ind_col-1] = [[],[]]
             
-                
             p_temp = max(len(x) for x in new_rows)    
             ###
             theta_init=np.concatenate((np.concatenate((new_rows[i][ind_col+2-1].theta,new_rows[i-1][ind_col+2].theta),axis=None), \
@@ -380,7 +373,7 @@ def move_last_diag(new_rows,k=1,verbose=False): #fill N-1-k row
         
     return new_rows
 
-def move_last_diag2(new_rows,k=2,verbose=False): #fill N-1-k row
+def move_diag_to12(new_rows,k=2,verbose=verbose): #fill N-1-k row
     global YBE_count
     for s in range(int(k/2)):
         ind_ini_row = N-k-1+2*s   
@@ -461,31 +454,6 @@ def move_last_diag2(new_rows,k=2,verbose=False): #fill N-1-k row
                 print(f'#{ind_ini_row+1-i+1} YBE, Ori == New: {np.allclose(ori,new)}') 
         print(f'#{k+1} reverse-diagnal: Finish moving the #{s+1} blocK')
         
-        # move back some blocks
-        # if s == 0 and k==1:
-        #     for row in range(ind_ini_row+1):
-        #         for col in range(ind_col+row,p_temp):
-        #             new_rows[ind_ini_row-row][col], new_rows[ind_ini_row-row][col-1] = \
-        #             new_rows[ind_ini_row-row][col-1], new_rows[ind_ini_row-row][col]
-        #     for row in range(ind_ini_row+1,N-1): 
-        #         for col in range(ind_col,p_temp):
-        #             new_rows[row][col-1], new_rows[row][col]= \
-        #             new_rows[row][col], new_rows[row][col-1]
-        # elif s == 0 and k>=2:
-        # if s == 0:
-        #     for row in range(ind_ini_row+1):
-        #         for col in range(ind_col+row,p_temp):
-        #             new_rows[ind_row-row][col], new_rows[ind_ini_row-row][col-2] = \
-        #             new_rows[ind_row-row][col-2], new_rows[ind_ini_row-row][col]
-        #     for row in range(ind_ini_row+1,N-1): 
-        #         for col in range(ind_col+1,p_temp): #ind_col+(row-ind_ini_row-1)
-        #             new_rows[row][col-2], new_rows[row][col]= \
-        #             new_rows[row][col], new_rows[row][col-2]
-        #     for row in range(ind_ini_row+2,N-1):
-        #         for col in range(ind_col+2,ind_col+2+(row-ind_ini_row-2)+1):
-        #             new_rows[row][col-2], new_rows[row][col]= \
-        #             new_rows[row][col], new_rows[row][col-2]
-                
         for col in range(p_temp-1,-1,-1):
             temp=[row[col] for row in new_rows]
             if not any(temp):
@@ -509,11 +477,11 @@ def transform12(rows):
     new_rows = copy.deepcopy(rows) 
     print(f'====== Step 1: Start constructing a trangular-like circuit ======\n' )
     k = 0
-    # if N % 2 == 0:
-    #     end = 3
-    # else:
-    #     end = 2
-    while( N-k > 3): 
+    if N % 2 == 0:
+        end = 3
+    else:
+        end = 2
+    while( N-k > end): 
         if k % 2 == 0:
             new_rows=move_first_row(new_rows,k=k)
         else:
@@ -523,9 +491,12 @@ def transform12(rows):
 
     #### Step 2
     print(f'====== Step 2: Start moving back a trangular-like circuit ======\n' )
-    k=1
+    k = 1
     while( N-k >= 2): 
-        new_rows = move_last_diag(new_rows,k=k)
+        if N % 2 == 0:
+            new_rows = move_diag_to23(new_rows,k=k)
+        else:
+            new_rows = move_diag_to12(new_rows,k=k)
         k+=1
     print(f'Finish transformation with #{YBE_count} YBE\n' )
     return new_rows
@@ -535,9 +506,13 @@ def transform23(rows):
     #### Step 1: 
     print(f'====== Step 1: Start constructing a trangular-like circuit ======\n' )
     k = 0
-    while( N-k >= 3): 
+    if N % 2 == 0:
+        end = 3
+    else:
+        end = 2
+    while( N-k >= end): 
         if k % 2 == 0:
-            new_rows=move_second_row(new_rows,k=k) 
+            new_rows=move_second_row(new_rows,k=k,mode='23') 
         else:
             new_rows=move_first_row(new_rows,k=k,mode='23')
         k+=1
@@ -545,9 +520,12 @@ def transform23(rows):
 
     #### Step 2: need a different move back
     print(f'====== Step 2: Start moving back a trangular-like circuit ======\n' )
-    k = 2
+    k = 1
     while( N-k >= 2): 
-        new_rows = move_last_diag2(new_rows,k=k)
+        if N%2 == 0:
+            new_rows = move_diag_to12(new_rows,k=k)
+        else:
+            new_rows = move_diag_to23(new_rows,k=k)
         k+=1
     print(f'Finish transformation with #{YBE_count} YBE\n' )
     return new_rows
@@ -555,9 +533,11 @@ def transform23(rows):
 def merge_to_minimal(rows):
     new_rows = [sublist[:N] for sublist in rows] #slicing lst of lst
     k = N
-    while k < 2*p:
+    reflect_count = 0
+    while k < p:
+        print(f'======Start merging #{reflect_count+1} layer======\n')
         to_merge=[sublist[k] for sublist in rows]
-        if k % 2 == 0:
+        if reflect_count % 2 == 0:
             new_rows = transform12(new_rows)
         else:
             new_rows = transform23(new_rows)
@@ -565,6 +545,7 @@ def merge_to_minimal(rows):
             if to_merge[i]!=[]:
                 new_rows[i][-1].merge(to_merge[i])
         k+=1
+        reflect_count+=1
         
     new = 1
     for _ in range(N):
@@ -576,38 +557,8 @@ def merge_to_minimal(rows):
     print(f'Finish merging, Ori == New: {np.allclose(ori,new)}\n') #{k+1} layer
     return new_rows
 
-# new23 = transform12(rows)
-# new12 = transform23(new23)
-merged = merge_to_minimal(rows)
-
-# new_rows = copy.deepcopy(rows) 
-# print(f'Step 1: Start constructing a trangular-like circuit\n' )
-# k=0
-# while( N-k > 3): 
-#     # If N-k > 4, then move back from k=3
-#     # If N-k > 3, then move back from k=1
-#     if k % 2 == 0:
-#         new_rows=move_first_row(new_rows,k=k)
-#     else:
-#         new_rows=move_second_row(new_rows,k=k)
-#     k+=1
-# print(f'Finish constructing a trangular-like circuit with #{YBE_count} YBE\n' )
-# # new_rows1 = move_first_row(new_rows,k=0)
-# # new_rows2 = move_second_row(new_rows1,k=1)
-# # new_rows3 = move_first_row(new_rows2,k=2)
-# # new_rows4 = move_second_row(new_rows3,k=3)
-
-# #### Step 2
-# print(f'Step 2: Start moving back a trangular-like circuit\n' )
-# # new_rows1 = move_last_diag(new_rows,k=1)
-# # new_rows2 = move_last_diag(new_rows1,k=2)
-# # new_rows3 = move_last_diag(new_rows2,k=3)
-# # new_rows4 = move_last_diag(new_rows3,k=4)
-# # new_rows5 = move_last_diag(new_rows4,k=5)
-# # new_rows6 = move_last_diag(new_rows5,k=6)
-# k=1
-# while( N-k >= 2): 
-#     new_rows = move_last_diag(new_rows,k=k)
-#     k+=1
-# print(f'Finish transformation with #{YBE_count} YBE\n' )
-
+if p == N:
+    new23 = transform12(rows)
+    new12 = transform23(new23)
+else:
+    merged = merge_to_minimal(rows)
