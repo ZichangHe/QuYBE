@@ -85,6 +85,9 @@ for j in range(p):
             ori=ori@rows[i][j].m 
 
 def move_first_row(new_rows,k=0,mode='12',verbose=verbose): 
+    '''
+    The first row means that the first block is NOT empty
+    '''
     global YBE_count
     if mode == '12': #when it is used in transform12
         if N % 2 == 0:
@@ -167,6 +170,9 @@ def move_first_row(new_rows,k=0,mode='12',verbose=verbose):
     return new_rows
 
 def move_second_row(new_rows,k=1,mode='12',verbose=verbose): 
+    '''
+    The second row means that the first block is empty
+    '''
     global YBE_count
     if mode=='12':
         if N % 2 == 0:
@@ -249,6 +255,12 @@ def move_second_row(new_rows,k=1,mode='12',verbose=verbose):
     return new_rows
 
 def move_diag_to23(new_rows,k=1,verbose=verbose): #fill N-1-k row
+    '''
+    --------------------|theta_trans[2]|--------------------
+    --|theta_trans[0]|--|theta_trans[3]|--|theta_trans[4]|--
+    --|theta_trans[1]|--------------------|theta_trans[5]|--
+    23: The first block of the first row is empty
+    '''
     global YBE_count
     for s in range(ceil(k/2)):
         ind_ini_row = N-2-k+2*s 
@@ -374,6 +386,12 @@ def move_diag_to23(new_rows,k=1,verbose=verbose): #fill N-1-k row
     return new_rows
 
 def move_diag_to12(new_rows,k=2,verbose=verbose): #fill N-1-k row
+    '''
+    --|theta_init[0]|-------------------|theta_init[4]|-- 
+    --|theta_init[1]|--|theta_init[2]|--|theta_init[5]|-- = 
+    -------------------|theta_init[3]|-------------------   
+    12: The first block of the first row is NOT empty
+    '''
     global YBE_count
     for s in range(int(k/2)):
         ind_ini_row = N-k-1+2*s   
@@ -472,6 +490,7 @@ def move_diag_to12(new_rows,k=2,verbose=verbose): #fill N-1-k row
             print(f'Move back with layer {p_temp}, Ori == New: {np.allclose(ori,new)}\n')  
         
     return new_rows
+
 
 def transform12(rows):
     new_rows = copy.deepcopy(rows) 
