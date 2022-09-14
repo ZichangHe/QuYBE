@@ -1,0 +1,12 @@
+others/
+__pycache__/
+build/
+QuYBE.egg-info/
+eggs/
+.eggs/
+.dist
+.idea
+.DS_Store
+.ipynb_checkpoints
+
+
