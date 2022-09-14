@@ -4,7 +4,7 @@ Exactly simulate 1D-Heisenberg dynamics with a compressed circuit. This is the i
 
 ## Installation
 
-QuYBE is written in Python 3, with dependency on numpy and qiskit. You can enter the fold and install with 
+QuYBE is written in Python 3, with dependency on numpy and qiskit. You can enter the folder and install with 
 
 ```
 pip install .
