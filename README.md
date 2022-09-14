@@ -27,7 +27,5 @@ python example/example_dynamics.py
 ## Cite
 If you find this repository useful, please cite us at ...
 
-## Contact
-Joint work among UCSB, Argonne, and PNNL. Contact Zichang He at zichanghe@ucsb.edu, Sahill at xxx, Bo Peng at xxx.
 
 
