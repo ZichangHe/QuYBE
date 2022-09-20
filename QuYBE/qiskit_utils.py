@@ -39,55 +39,124 @@ def trotter_circuit(n,Jx,Jy,Jz,delta_t,circ):
     if (Jz==0.0):
         gamma = (Jx+Jy)*delta_t/hbar
         delta = (Jx-Jy)*delta_t/hbar
+        # Odd Layer
+        for i in range (0,n-1,2):
+            circ.rx(np.pi/2,i)
+            circ.rx(np.pi/2,i+1)
+            circ.cx(i,i+1)
+            circ.rx(-(gamma+delta),i)
+            circ.rz(-(gamma-delta),i+1)
+            circ.cx(i,i+1)
+            circ.rx(-np.pi/2,i)
+            circ.rx(-np.pi/2,i+1)
 
-    # Odd Layer
-    for i in range (0,n-1,2):
-      circ.rx(np.pi/2,i)
-      circ.rx(np.pi/2,i+1)
-      circ.cx(i,i+1)
-      circ.rx(-(gamma+delta),i)
-      circ.rz(-(gamma-delta),i+1)
-      circ.cx(i,i+1)
-      circ.rx(-np.pi/2,i)
-      circ.rx(-np.pi/2,i+1)
-      
-    # Even Layer
-    for i in range (1,n-1,2):
-      circ.rx(np.pi/2,i)
-      circ.rx(np.pi/2,i+1)
-      circ.cx(i,i+1)
-      circ.rx(-(gamma+delta),i)
-      circ.rz(-(gamma-delta),i+1)
-      circ.cx(i,i+1)
-      circ.rx(-np.pi/2,i)
-      circ.rx(-np.pi/2,i+1)
-          
+        # Even Layer
+        for i in range (1,n-1,2):
+            circ.rx(np.pi/2,i)
+            circ.rx(np.pi/2,i+1)
+            circ.cx(i,i+1)
+            circ.rx(-(gamma+delta),i)
+            circ.rz(-(gamma-delta),i+1)
+            circ.cx(i,i+1)
+            circ.rx(-np.pi/2,i)
+            circ.rx(-np.pi/2,i+1)
+
+
+    if (Jy==0.0):
+        gamma = Jx*delta_t/hbar
+        delta = Jz*delta_t/hbar
+        # Odd Layer
+        for i in range (0,n-1,2):
+            circ.cx(i,i+1)
+            circ.rx(-2*gamma,i)
+            circ.rz(-2*delta,i+1)
+            circ.cx(i,i+1)
+
+        # Even Layer
+        for i in range (1,n-1,2):
+            circ.cx(i,i+1)
+            circ.rx(-2*gamma,i)
+            circ.rz(-2*delta,i+1)
+            circ.cx(i,i+1)
+    
+    if (Jx==0.0):
+        gamma = Jy*delta_t/hbar
+        delta = Jz*delta_t/hbar
+        # Odd Layer
+        for i in range (0,n-1,2):
+            circ.rz(np.pi/2,i)
+            circ.rz(np.pi/2,i+1)
+            circ.cx(i,i+1)
+            circ.rx(-2*gamma,i)
+            circ.rz(-2*delta,i+1)
+            circ.cx(i,i+1)
+            circ.rz(-np.pi/2,i)
+            circ.rz(-np.pi/2,i+1)
+
+        # Even Layer
+        for i in range (1,n-1,2):
+            circ.rz(np.pi/2,i)
+            circ.rz(np.pi/2,i+1)
+            circ.cx(i,i+1)
+            circ.rx(-2*gamma,i)
+            circ.rz(-2*delta,i+1)
+            circ.cx(i,i+1)
+            circ.rz(-np.pi/2,i)
+            circ.rz(-np.pi/2,i+1)
+
     return circ
 
 def trotter_circuit_half(n,Jx,Jy,Jz,delta_t,circ):
     hbar = 0.658212 
+          
     if (Jz==0.0):
         gamma = (Jx+Jy)*delta_t/hbar
         delta = (Jx-Jy)*delta_t/hbar
+        # Odd Layer
+        for i in range (0,n-1,2):
+            circ.rx(np.pi/2,i)
+            circ.rx(np.pi/2,i+1)
+            circ.cx(i,i+1)
+            circ.rx(-(gamma+delta),i)
+            circ.rz(-(gamma-delta),i+1)
+            circ.cx(i,i+1)
+            circ.rx(-np.pi/2,i)
+            circ.rx(-np.pi/2,i+1)
 
-    # Odd Layer
-    for i in range (0,n-1,2):
-      circ.rx(np.pi/2,i)
-      circ.rx(np.pi/2,i+1)
-      circ.cx(i,i+1)
-      circ.rx(-(gamma+delta),i)
-      circ.rz(-(gamma-delta),i+1)
-      circ.cx(i,i+1)
-      circ.rx(-np.pi/2,i)
-      circ.rx(-np.pi/2,i+1)
-      
+    if (Jy==0.0):
+        gamma = Jx*delta_t/hbar
+        delta = Jz*delta_t/hbar
+        # Odd Layer
+        for i in range (0,n-1,2):
+            circ.cx(i,i+1)
+            circ.rx(-2*gamma,i)
+            circ.rz(-2*delta,i+1)
+            circ.cx(i,i+1)
+    
+    if (Jx==0.0):
+        gamma = Jy*delta_t/hbar
+        delta = Jz*delta_t/hbar
+        # Odd Layer
+        for i in range (0,n-1,2):
+            circ.rz(np.pi/2,i)
+            circ.rz(np.pi/2,i+1)
+            circ.cx(i,i+1)
+            circ.rx(-2*gamma,i)
+            circ.rz(-2*delta,i+1)
+            circ.cx(i,i+1)
+            circ.rz(-np.pi/2,i)
+            circ.rz(-np.pi/2,i+1)
     return circ
 
 def row_to_trotter_circuit(rows,circ):
-    if rows[0][0] == []:
-        opt = rows[0][1].opt
-    else:
-        opt = rows[0][0].opt
+    findopt = 0
+    for example_block in rows[0]:
+        if example_block != []:
+            opt = example_block.opt
+            findopt = 1
+    if findopt == 0:
+        # for initial time, rows is a list of empty list. Do nothing.
+        return circ
     if opt == 1:
         n = len(rows) + 1
         for col in range(len(rows[0])):
