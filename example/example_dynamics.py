@@ -4,32 +4,40 @@ import pickle
 
 N = 5
 Jx = -0.8
-Jy = -0.2
+Jy = 0.1
 Jz = 0
 delta_t = 0.050 
 step = 10
 p = step*2 # p>=N
-backend = Aer.get_backend('statevector_simulator')
-# backend = Aer.get_backend('unitary_simulator')
+# backend = Aer.get_backend('statevector_simulator')
+backend = Aer.get_backend('unitary_simulator')
 save = False
+debug = False
 
 ### Generate XY circuit blocks/rows
-theta = J2theta(Jx,Jy,delta_t)
-rows = generate_circuit(N, p, theta=theta)
-ori_unitary = sv_simulation(rows)
+rows = generate_circuit(N, p, Jx, Jy, Jz, delta_t, debug=debug)
+if debug == True:
+    ori_unitary = sv_simulation(rows)
 
 ### Compression   
-merged, YBE_count = merge_to_minimal(rows,ori_unitary,verbose=False)
+import time
+start = time.time()
+merged, YBE_count = merge_to_minimal(rows, debug=debug, verbose=False)
+end = time.time()
 print(f'Finish all transformation with #{YBE_count} YBE')
+print(f'The time of execution of above program is :{(end-start)}')
 circ = QuantumCircuit(N)
-circ = input_state_circ(N,circ)
+# circ = input_state_circ(N,circ)
+
 ### Verify the compressed circuit and rows
 circ = row_to_trotter_circuit(merged,circ) 
-YBE_state = execute(circ, backend).result().get_statevector()
-# YBE_state = execute(circ, backend).result().get_unitary(circ)
-# print(np.allclose(ori_unitary, YBE_state))
-    
-print(circ.qasm())
+if debug == True:
+    # YBE_state = execute(circ, backend).result().get_statevector()
+    YBE_unitary = execute(circ, backend).result().get_unitary(circ)
+    print(np.allclose(ori_unitary, YBE_unitary))
+
+### Print the qasm circuit
+# print(circ.qasm())
 
 if save is True:
     f = open(

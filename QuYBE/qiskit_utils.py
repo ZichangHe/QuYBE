@@ -84,18 +84,48 @@ def trotter_circuit_half(n,Jx,Jy,Jz,delta_t,circ):
     return circ
 
 def row_to_trotter_circuit(rows,circ):
-    n = len(rows) + 1
-    for col in range(len(rows[0])):
-        for i in range(0, n-1):
-            if rows[i][col] != []:
-                angle = rows[i][col].theta
-                circ.rx(np.pi/2,i)
-                circ.rx(np.pi/2,i+1)
-                circ.cx(i,i+1)
-                circ.rx(angle[0],i)
-                circ.rz(angle[1],i+1)
-                circ.cx(i,i+1)
-                circ.rx(-np.pi/2,i)
-                circ.rx(-np.pi/2,i+1)
+    if rows[0][0] == []:
+        opt = rows[0][1].opt
+    else:
+        opt = rows[0][0].opt
+    if opt == 1:
+        n = len(rows) + 1
+        for col in range(len(rows[0])):
+            for i in range(0, n-1):
+                if rows[i][col] != []:
+                    angle = rows[i][col].theta
+                    circ.rx(np.pi/2,i)
+                    circ.rx(np.pi/2,i+1)
+                    circ.cx(i,i+1)
+                    circ.rx(angle[0],i)
+                    circ.rz(angle[1],i+1)
+                    circ.cx(i,i+1)
+                    circ.rx(-np.pi/2,i)
+                    circ.rx(-np.pi/2,i+1)
+    if opt == 2:
+        n = len(rows) + 1
+        for col in range(len(rows[0])):
+            for i in range (0,n-1):
+                if rows[i][col] != []:
+                    angle = rows[i][col].theta
+                    circ.cx(i,i+1)
+                    circ.rx(angle[0],i)
+                    circ.rz(angle[1],i+1)
+                    circ.cx(i,i+1)
+         
+    if opt == 3:
+        n = len(rows) + 1
+        for col in range(len(rows[0])):
+            for i in range (0,n-1):
+                if rows[i][col] != []:
+                    angle = rows[i][col].theta
+                    circ.rz(np.pi/2,i)
+                    circ.rz(np.pi/2,i+1)
+                    circ.cx(i,i+1)
+                    circ.rx(angle[0],i)
+                    circ.rz(angle[1],i+1)
+                    circ.cx(i,i+1)
+                    circ.rz(-np.pi/2,i)
+                    circ.rz(-np.pi/2,i+1)
               
     return circ

@@ -2,7 +2,7 @@ import copy
 from .core_utils import *
 
 class block:
-    def __init__(self, theta=None, opt=1, row=0, col=None, N=6):
+    def __init__(self, theta=None, opt=1, row=0, col=None, N=6, debug=False):
         # N is the # of qubits
         assert (row < N-1 and row >= 0)
         if theta is None:
@@ -14,26 +14,31 @@ class block:
         # self.col = col
         self.row = row
         # self.ind = {'row':self.row, 'col':self.col}
-        self.N=N
-        self.opt=opt
-        temp1, temp2 = 1, 1
-        for _ in range(row):
-            temp1 = np.kron(I,temp1)
-        for _ in range(row+1,N-1):
-            temp2 = np.kron(I,temp2)
-        self.m = np.kron(np.kron(temp1,G(self.theta[0],self.theta[1],opt)),temp2)
+        self.N = N
+        self.opt = opt
+        self.debug = debug
+        if debug == True:
+            temp1, temp2 = 1, 1
+            for _ in range(row):
+                temp1 = np.kron(I,temp1)
+            for _ in range(row+1,N-1):
+                temp2 = np.kron(I,temp2)
+            self.m = np.kron(np.kron(temp1,G(self.theta[0],self.theta[1],opt)),temp2)
         
     def merge(self, block2):
         assert self.row == block2.row
         self.theta += block2.theta
-        temp1, temp2 = 1, 1
-        for _ in range(self.row):
-            temp1 = np.kron(I,temp1)
-        for _ in range(self.row+1,self.N-1):
-            temp2 = np.kron(I,temp2)
-        self.m = np.kron(np.kron(temp1,G(self.theta[0],self.theta[1],self.opt)),temp2)
+        if self.debug == True:
+            temp1, temp2 = 1, 1
+            for _ in range(self.row):
+                temp1 = np.kron(I,temp1)
+            for _ in range(self.row+1,self.N-1):
+                temp2 = np.kron(I,temp2)
+            if self.debug == True:
+                self.m = np.kron(np.kron(temp1,G(self.theta[0],self.theta[1],self.opt)),temp2)
 
-def generate_circuit(N, p, theta=None):
+def generate_circuit(N, p, Jx, Jy, Jz, delta_t, debug=False):
+    theta, opt = J2theta(Jx, Jy, Jz, delta_t)
     rows = [[] for _ in range(N-1)] 
     for j in range(p):
         for i in range(N-1):
@@ -41,14 +46,14 @@ def generate_circuit(N, p, theta=None):
             # if theta is None, generate random angles by default
             if j % 2 == 0:
                 if i % 2 ==0:
-                    rows[i].append(block(theta=theta,row=i,col=j,N=N))
+                    rows[i].append(block(theta=theta,row=i,col=j,N=N,opt=opt,debug=debug))
                 else:
                     rows[i].append([])
             else:
                 if i % 2 == 0:
                     rows[i].append([])
                 else:
-                    rows[i].append(block(theta=theta,row=i,col=j,N=N))
+                    rows[i].append(block(theta=theta,row=i,col=j,N=N,opt=opt,debug=debug))
     print(f'Generate N={N}, depth={p}, XY circuits')
     return rows
 
@@ -66,16 +71,36 @@ def sv_simulation(rows):
                     output = output @ rows[row][col].m 
     return output
 
-def J2theta(Jx,Jy,delta_t):
+def J2theta(Jx,Jy,Jz,delta_t):
     ''' From dynamics parameters to rows' parameters'''
-    # Jz = 0
-    hbar = 0.658212 
-    gamma = (Jx+Jy)*delta_t/hbar
-    delta = (Jx-Jy)*delta_t/hbar
-    theta = np.array([-(gamma+delta),-(gamma-delta)])
-    return theta
+    hbar = 0.658212
+    if (Jz == 0.0):
+        opt = 1
+        gamma = (Jx+Jy)*delta_t/hbar
+        delta = (Jx-Jy)*delta_t/hbar
+        theta = np.array([-(gamma+delta),-(gamma-delta)])
+        return theta, opt
+    
+    elif (Jx == 0.0):
+        opt = 2
+        gamma = Jy*delta_t/hbar
+        delta = Jz*delta_t/hbar
+        theta = np.array([-2*gamma,-2*delta])
+        return theta, opt
+    
+    elif (Jy == 0.0):
+        opt = 3
+        gamma = Jx*delta_t/hbar
+        delta = Jz*delta_t/hbar
+        theta = np.array([-2*gamma,-2*delta])
+        return theta, opt
+    
+    else:
+        raise ValueError("One of Js must be zero")
+    
+    
 
-def merge_to_minimal(rows,ori=None,verbose=False):
+def merge_to_minimal(rows,verbose=False,debug=False):
     YBE_count = 0
     N = len(rows)+1
     p = len(rows[0])
@@ -86,10 +111,10 @@ def merge_to_minimal(rows,ori=None,verbose=False):
         print(f'======Start merging #{reflect_count+1} layer======\n')
         to_merge = [sublist[k] for sublist in rows]
         if reflect_count % 2 == 0:
-            new_rows, new_YBE_count = transform_V2A(new_rows,verbose)
+            new_rows, new_YBE_count = transform_V2A(new_rows,verbose,debug=debug)
             YBE_count += new_YBE_count
         else:
-            new_rows, new_YBE_count = transform_A2V(new_rows,verbose)
+            new_rows, new_YBE_count = transform_A2V(new_rows,verbose,debug=debug)
             YBE_count += new_YBE_count
         for i in range(N-1):
             if to_merge[i]!=[]:
@@ -97,21 +122,22 @@ def merge_to_minimal(rows,ori=None,verbose=False):
         k+=1
         reflect_count+=1
     
-    ## generate state vector from compressed circuits 
-    new = sv_simulation(new_rows)
-      
-    ## generate state vector from original circuits           
-    if ori is None: 
+    if debug is True: 
+        ## generate state vector from compressed circuits 
+        new = sv_simulation(new_rows)
+        # generate state vector from original circuits           
         ori = sv_simulation(rows)
-        
-    print(f'Finish merging, Ori == New: {np.allclose(ori,new)}\n') #{k+1} layer
+        print(f'Finish merging, Ori == New: {np.allclose(ori,new)}\n') #{k+1} layer
     return new_rows, YBE_count              
   
               
-def move_first_row(new_rows,k=0,mode='V2A',verbose=False,debug=True): 
+def move_first_row(new_rows,k=0,mode='V2A',verbose=False,debug=False): 
     '''
     The first row means that the first block is NOT empty
     '''
+    for example_block in new_rows[0]:
+        if example_block != []:
+            opt = example_block.opt
     YBE_count = 0
     N = len(new_rows) + 1
     if mode == 'V2A': #when it is used in transform_V2A
@@ -147,23 +173,23 @@ def move_first_row(new_rows,k=0,mode='V2A',verbose=False,debug=True):
             if i == k:
                 new_rows[i][ind-2] = []
                 new_rows[i][ind] = []
-                new_rows[i][ind] = block(theta=theta_trans[2:4],row=i,N=N) 
+                new_rows[i][ind] = block(theta=theta_trans[2:4],row=i,opt=opt,N=N,debug=debug) 
                 new_rows[i+1][ind-1] = []
-                new_rows[i+1][ind-1] = block(theta=theta_trans[0:2],row=i+1,N=N) 
-                new_rows[i+1][ind+1] = block(theta=theta_trans[4:6],row=i+1,N=N)
+                new_rows[i+1][ind-1] = block(theta=theta_trans[0:2],row=i+1,opt=opt,N=N,debug=debug) 
+                new_rows[i+1][ind+1] = block(theta=theta_trans[4:6],row=i+1,opt=opt,N=N,debug=debug)
                 ind+=3
             else:
                 new_rows[i][ind-2] = []
                 new_rows[i][ind] = []
-                new_rows[i][ind-2] = block(theta=theta_trans[2:4],row=i,N=N) 
+                new_rows[i][ind-2] = block(theta=theta_trans[2:4],row=i,opt=opt,N=N,debug=debug) 
                 new_rows[i+1][ind-1] = []
-                new_rows[i+1][ind-3] = block(theta=theta_trans[0:2],row=i+1,N=N) 
-                new_rows[i+1][ind-1] = block(theta=theta_trans[4:6],row=i+1,N=N)
+                new_rows[i+1][ind-3] = block(theta=theta_trans[0:2],row=i+1,opt=opt,N=N,debug=debug) 
+                new_rows[i+1][ind-1] = block(theta=theta_trans[4:6],row=i+1,opt=opt,N=N,debug=debug)
                 ind+=1
             ####
-            if debug is True:
-                new = sv_simulation(new_rows)
-                print(f'#{i-k+1} YBE, Ori == New: {np.allclose(ori,new)}') 
+            # if debug is True:
+            #     new = sv_simulation(new_rows)
+            #     print(f'#{i-k+1} YBE, Ori == New: {np.allclose(ori,new)}') 
         if verbose is True:
             print(f'#{k+1} row: Finish moving the #{s+1} blocK')
         
@@ -178,9 +204,9 @@ def move_first_row(new_rows,k=0,mode='V2A',verbose=False,debug=True):
                 for row in range(N-1):
                     del new_rows[row][col]
         p_temp = max(len(x) for x in new_rows)
-        if debug is True:    
-            new = sv_simulation(new_rows)
-            print(f'Move back with layer {p_temp}, Ori == New: {np.allclose(ori,new)}\n')  
+        # if debug is True:    
+        #     new = sv_simulation(new_rows)
+        #     print(f'Move back with layer {p_temp}, Ori == New: {np.allclose(ori,new)}\n')  
         
     return new_rows, YBE_count
 
@@ -189,6 +215,9 @@ def move_second_row(new_rows,k=1,mode='V2A',verbose=False,debug=False):
     '''
     The second row means that the first block is empty
     '''
+    for example_block in new_rows[0]:
+        if example_block != []:
+            opt = example_block.opt
     YBE_count = 0
     N = len(new_rows) + 1
     if mode=='V2A': #when it is used in transform_V2A
@@ -225,23 +254,23 @@ def move_second_row(new_rows,k=1,mode='V2A',verbose=False,debug=False):
             if i == k:
                 new_rows[i][ind-2] = []
                 new_rows[i][ind] = []
-                new_rows[i][ind] = block(theta=theta_trans[2:4],row=i,N=N) 
+                new_rows[i][ind] = block(theta=theta_trans[2:4],row=i,opt=opt,N=N,debug=debug) 
                 new_rows[i+1][ind-1] = []
-                new_rows[i+1][ind-1] = block(theta=theta_trans[0:2],row=i+1,N=N) 
-                new_rows[i+1][ind+1] = block(theta=theta_trans[4:6],row=i+1,N=N)
+                new_rows[i+1][ind-1] = block(theta=theta_trans[0:2],row=i+1,opt=opt,N=N,debug=debug) 
+                new_rows[i+1][ind+1] = block(theta=theta_trans[4:6],row=i+1,opt=opt,N=N,debug=debug)
                 ind+=3
             else:
                 new_rows[i][ind-2] = []
                 new_rows[i][ind] = []
-                new_rows[i][ind-2] = block(theta=theta_trans[2:4],row=i,N=N) 
+                new_rows[i][ind-2] = block(theta=theta_trans[2:4],row=i,opt=opt,N=N,debug=debug) 
                 new_rows[i+1][ind-1] = []
-                new_rows[i+1][ind-3] = block(theta=theta_trans[0:2],row=i+1,N=N) 
-                new_rows[i+1][ind-1] = block(theta=theta_trans[4:6],row=i+1,N=N)
+                new_rows[i+1][ind-3] = block(theta=theta_trans[0:2],row=i+1,opt=opt,N=N,debug=debug) 
+                new_rows[i+1][ind-1] = block(theta=theta_trans[4:6],row=i+1,opt=opt,N=N,debug=debug)
                 ind+=1
             ####
-            if debug is True:
-                new = sv_simulation(new_rows)
-                print(f'#{i-k+1} YBE, Ori == New: {np.allclose(ori,new)}') 
+            # if debug is True:
+            #     new = sv_simulation(new_rows)
+            #     print(f'#{i-k+1} YBE, Ori == New: {np.allclose(ori,new)}') 
         if verbose is True:
             print(f'#{k+1} row: Finish moving the #{s+1} block')
         
@@ -256,9 +285,9 @@ def move_second_row(new_rows,k=1,mode='V2A',verbose=False,debug=False):
                 for row in range(N-1):
                     del new_rows[row][col]
         p_temp = max(len(x) for x in new_rows)
-        if debug is True:    
-            new = sv_simulation(new_rows)
-            print(f'Move back with layer {p_temp}, Ori == New: {np.allclose(ori,new)}\n')  
+        # if debug is True:    
+        #     new = sv_simulation(new_rows)
+        #     print(f'Move back with layer {p_temp}, Ori == New: {np.allclose(ori,new)}\n')  
         
     return new_rows, YBE_count
 
@@ -269,6 +298,9 @@ def move_diag_to23(new_rows,k=1,verbose=False,debug=False): #fill N-1-k row
     --|theta_trans[1]|--------------------|theta_trans[5]|--
     23: The first block of the first row is empty
     '''
+    for example_block in new_rows[0]:
+        if example_block != []:
+            opt = example_block.opt
     YBE_count = 0
     N = len(new_rows) + 1
     for s in range(ceil(k/2)):
@@ -309,10 +341,10 @@ def move_diag_to23(new_rows,k=1,verbose=False,debug=False): #fill N-1-k row
             YBE_count += 1
             
             new_rows[i][ind_col+2+1] = []
-            new_rows[i][ind_col+2-1] = block(theta=theta_trans[2:4],row=i,N=N)
+            new_rows[i][ind_col+2-1] = block(theta=theta_trans[2:4],row=i,opt=opt,N=N,debug=debug)
             new_rows[i-1][ind_col+2-2] = []
-            new_rows[i-1][ind_col+2-2] = block(theta=theta_trans[0:2],row=i-1,N=N)
-            new_rows[i-1][ind_col+2] = block(theta=theta_trans[4:6],row=i-1,N=N) 
+            new_rows[i-1][ind_col+2-2] = block(theta=theta_trans[0:2],row=i-1,opt=opt,N=N,debug=debug)
+            new_rows[i-1][ind_col+2] = block(theta=theta_trans[4:6],row=i-1,opt=opt,N=N,debug=debug) 
             
             if i < ind_ini_row+1:
                 ## move back the blank blocks in the last i
@@ -341,9 +373,9 @@ def move_diag_to23(new_rows,k=1,verbose=False,debug=False): #fill N-1-k row
                         new_rows[row][col-2], new_rows[row][col]= \
                         new_rows[row][col], new_rows[row][col-2]
             ####
-            if debug is True:
-                new = sv_simulation(new_rows)
-                print(f'#{ind_ini_row+1-i+1} YBE, Ori == New: {np.allclose(ori,new)}') 
+            # if debug is True:
+            #     new = sv_simulation(new_rows)
+            #     print(f'#{ind_ini_row+1-i+1} YBE, Ori == New: {np.allclose(ori,new)}') 
         if verbose is True:
             print(f'#{k+1} reverse-diagnal: Finish moving the #{s+1} blocK')
         
@@ -378,9 +410,9 @@ def move_diag_to23(new_rows,k=1,verbose=False,debug=False): #fill N-1-k row
                     del new_rows[row][col]
             
         p_temp = max(len(x) for x in new_rows)
-        if debug is True:    
-            new = sv_simulation(new_rows)
-            print(f'Move back with layer {p_temp}, Ori == New: {np.allclose(ori,new)}\n')  
+        # if debug is True:    
+        #     new = sv_simulation(new_rows)
+        #     print(f'Move back with layer {p_temp}, Ori == New: {np.allclose(ori,new)}\n')  
         
     return new_rows, YBE_count
 
@@ -392,6 +424,9 @@ def move_diag_to12(new_rows,k=2,verbose=False,debug=False): #fill N-1-k row
     -------------------|theta_init[3]|-------------------   
     12: The first block of the first row is NOT empty
     '''
+    for example_block in new_rows[0]:
+        if example_block != []:
+            opt = example_block.opt
     YBE_count = 0
     N = len(new_rows) + 1
     for s in range(int(k/2)):
@@ -429,10 +464,10 @@ def move_diag_to12(new_rows,k=2,verbose=False,debug=False): #fill N-1-k row
             theta_trans = YBE_A2V(theta_init)
             YBE_count += 1
             new_rows[i][ind_col+2+1] = []
-            new_rows[i][ind_col+2-1] = block(theta=theta_trans[2:4],row=i,N=N)
+            new_rows[i][ind_col+2-1] = block(theta=theta_trans[2:4],row=i,opt=opt,N=N,debug=debug)
             new_rows[i-1][ind_col+2-2] = []
-            new_rows[i-1][ind_col+2-2] = block(theta=theta_trans[0:2],row=i-1,N=N)
-            new_rows[i-1][ind_col+2] = block(theta=theta_trans[4:6],row=i-1,N=N) 
+            new_rows[i-1][ind_col+2-2] = block(theta=theta_trans[0:2],row=i-1,opt=opt,N=N,debug=debug)
+            new_rows[i-1][ind_col+2] = block(theta=theta_trans[4:6],row=i-1,opt=opt,N=N,debug=debug) 
             
             ###
             if i < ind_ini_row+1:
@@ -463,15 +498,9 @@ def move_diag_to12(new_rows,k=2,verbose=False,debug=False): #fill N-1-k row
                         new_rows[row][col-2], new_rows[row][col]= \
                         new_rows[row][col], new_rows[row][col-2]
             ###
-            if debug is True:
-                new = 1
-                for _ in range(N):
-                    new=np.kron(new,I)
-                for col in range(p_temp): 
-                    for row in range(N-1):
-                        if new_rows[row][col] != []:
-                            new=new@new_rows[row][col].m 
-                print(f'#{ind_ini_row+1-i+1} YBE, Ori == New: {np.allclose(ori,new)}') 
+            # if debug is True:
+            #     new = sv_simulation(new_rows)
+            #     print(f'#{ind_ini_row+1-i+1} YBE, Ori == New: {np.allclose(ori,new)}') 
         if verbose is True:
             print(f'#{k+1} reverse-diagnal: Finish moving the #{s+1} blocK')
         
@@ -482,9 +511,9 @@ def move_diag_to12(new_rows,k=2,verbose=False,debug=False): #fill N-1-k row
                     del new_rows[row][col]
             
         p_temp = max(len(x) for x in new_rows)
-        if debug is True:  
-            new = sv_simulation(new_rows)
-            print(f'Move back with layer {p_temp}, Ori == New: {np.allclose(ori,new)}\n')  
+        # if debug is True:  
+        #     new = sv_simulation(new_rows)
+        #     print(f'Move back with layer {p_temp}, Ori == New: {np.allclose(ori,new)}\n')  
         
     return new_rows, YBE_count
 
